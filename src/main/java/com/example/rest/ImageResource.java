@@ -1,17 +1,25 @@
 package com.example.rest;
 
+import com.example.api.Sessions;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
 import java.io.IOException;
 import java.net.URLConnection;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Serves pictures from the configured pictures base directory.
@@ -34,8 +42,14 @@ import java.nio.file.Files;
 @Path("/myresource")
 public class ImageResource {
 
+    private static final Logger log = Logger.getLogger(ImageResource.class);
+
     @ConfigProperty(name = "pictures.base-dir", defaultValue = "../pictures")
     String picturesBaseDir;
+
+    /** Base URL of the Apache reverse proxy (reads WILDFLY_URL env var, same as dalogin). */
+    @ConfigProperty(name = "admin.service-url", defaultValue = "http://localhost:8888")
+    String serviceUrl;
 
     /* ---------------------------------------------------------- */
     /*  GET /myresource  — simple health-check text (kept from    */
@@ -118,5 +132,50 @@ public class ImageResource {
 
         return Response.ok(data, mimeType).build();
     }
-}
 
+    /* ---------------------------------------------------------- */
+    /*  GET /myresource/admin  — active sessions / devices        */
+    /*  Proxies to dalogin /login/activeSessions via HTTP.        */
+    /*  dalogin reads the activeUsers map from its ServletContext  */
+    /*  and returns [{sessionId, user, deviceId, creationTime}].  */
+    /* ---------------------------------------------------------- */
+
+    @GET
+    @Path("/admin")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getSessions(@Context HttpHeaders headers) {
+        // Forward cookies from the incoming request so dalogin can identify the caller
+        String cookieHeader = null;
+        List<String> cookies = headers.getRequestHeader("Cookie");
+        if (cookies != null && !cookies.isEmpty()) {
+            cookieHeader = String.join("; ", cookies);
+        }
+
+        String activeSessionsUrl = serviceUrl + "/login/activeSessions";
+        log.infof("Fetching active sessions from %s", activeSessionsUrl);
+
+        OkHttpClient client = new OkHttpClient();
+        Request.Builder requestBuilder = new Request.Builder().url(activeSessionsUrl).get();
+
+        if (cookieHeader != null) {
+            requestBuilder.header("Cookie", cookieHeader);
+        }
+
+        try {
+            okhttp3.Response upstream = client.newCall(requestBuilder.build()).execute();
+            String body = upstream.body() != null ? upstream.body().string() : "[]";
+            int status = upstream.code();
+            log.infof("Active sessions response: status=%d, count=%d bytes", status, body.length());
+            return Response.status(status)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity(body)
+                    .build();
+        } catch (IOException e) {
+            log.errorf(e, "Failed to fetch active sessions from %s", activeSessionsUrl);
+            return Response.status(502)
+                    .type(MediaType.APPLICATION_JSON)
+                    .entity("{\"error\":\"Failed to reach dalogin active sessions\",\"message\":\"" + e.getMessage() + "\"}")
+                    .build();
+        }
+    }
+}
