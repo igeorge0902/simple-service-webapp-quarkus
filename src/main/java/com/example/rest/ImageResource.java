@@ -47,8 +47,8 @@ public class ImageResource {
     @ConfigProperty(name = "pictures.base-dir", defaultValue = "../pictures")
     String picturesBaseDir;
 
-    /** Base URL of the Apache reverse proxy (reads WILDFLY_URL env var, same as dalogin). */
-    @ConfigProperty(name = "admin.service-url", defaultValue = "http://localhost:8888")
+    /** Base URL of the Apache reverse proxy (reads DALOGIN env var, same as dalogin). */
+    @ConfigProperty(name = "admin.service-url", defaultValue = "http://dalogin:8080")
     String serviceUrl;
 
     /* ---------------------------------------------------------- */
