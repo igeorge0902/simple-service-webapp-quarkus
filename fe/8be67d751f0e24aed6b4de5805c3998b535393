@@ -1,0 +1,16 @@
+src/main/java/com/example/rest/ImageResource.java
+  h_d154d11af00b83 50-51
+src/main/resources/application.properties
+  h_d154d11af00b83 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "fe8be67d751f0e24aed6b4de5805c3998b535393",
+  "prompts": {},
+  "humans": {
+    "h_d154d11af00b83": {
+      "author": "GASPAR, GYORGY <gyorgy.gaspar@lhsystems.com>"
+    }
+  }
+}
